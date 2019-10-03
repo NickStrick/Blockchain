@@ -18,6 +18,28 @@ class Blockchain(object):
 
         self.new_block(previous_hash=1, proof=100)
 
+        if len(self.chain) is 0:
+            self.genesis_block
+
+    def genesis_block(self):
+        """
+        Create the genesis block and add it to the chain
+
+        The genesis block is the anchor of the chain.  It must be the
+        same for all nodes, or their chains will fail consensus.
+
+        It is normally hard-coded
+        """
+        block = {
+            'index': 1,
+            'timestamp': 0,
+            'transactions': [],
+            'proof': 99,  # 99 is faster for 1st proof gen
+            'previous_hash': 1,
+        }
+
+        self.chain.append(block)
+
     def new_block(self, proof, previous_hash=None):
         """
         Create a new Block in the Blockchain
@@ -173,6 +195,15 @@ class Blockchain(object):
 
         return False
 
+    def broadcast_new_block(self, block):
+        neighbors = self.nodes
+        post_data = {"block": block}
+        for node in neighbors:
+            r = request.post(f'http://{node}/block/new', json=post_data)
+            if r.status_code != 200:
+                # Error
+                pass
+
 
 # Instantiate our Node
 app = Flask(__name__)
@@ -192,7 +223,8 @@ def mine():
     values = request.get_json()
     submitted_proof = values.get('proof')
 
-    last_block_string = json.dumps(blockchain.last_block, sort_keys=True).encode()
+    last_block_string = json.dumps(
+        blockchain.last_block, sort_keys=True).encode()
 
     if blockchain.valid_proof(last_block_string, submitted_proof):
         # We must receive a reward for finding the proof.
@@ -295,6 +327,46 @@ def consensus():
         }
 
     return jsonify(response), 200
+
+
+@app.route('/chain_validity', methods=['GET'])
+def chain_validity():
+    response = {
+        "valid_chain": blockchain.valid_chain(blockchain.chain)
+    }
+    return jsonify(response), 200
+
+
+@app.route('/block/new', methods=['POST'])
+def receive_block():
+    values = request.get_json()
+    new_block = values["block"]
+    # TODO: validate: is peer in network? (issue as whether this is nec.)
+    # check index of block, make sure it's 1 > last
+    old_block = blockchain.last_block
+
+    if new_block["index"] == old_block["index"] + 1:
+        # index is OK
+        if new_block["previous_hash"] == blockchain.hash(old_block):
+            # hashes good
+            block_string = json.dumps(old_block, sort_keys=True).encode()
+
+            if blockchain.valid_proof(block_string, new_block["proof"]):
+                #Proof is valid
+                blockchain.add(new_block)
+                return "Block accepted", 200
+            else:
+                # Bad proof
+                pass
+        else:
+            # Bad hash
+            pass
+    else:
+        # index is more than 1 greater
+        # Block may be invalid, or we may be behind
+        # consensus: askall nodes in network for their chains
+        #    ==>> check lengths, replace ours with the longest valid chain
+        return 'Block Rejected', 200
 
 
 # Note, when demoing, start with this, then change to the below

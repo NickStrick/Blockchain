@@ -41,7 +41,7 @@ if __name__ == '__main__':
     coins_mined = 0
 
     # Load or create ID
-    f = open("my_id.txt", "r")
+    f = open('./my_id.txt', "r")
     id = f.read()
     print("ID is", id)
     f.close()
@@ -58,6 +58,7 @@ if __name__ == '__main__':
         r = requests.get(url=node + "/last_block")
         data = r.json()
         new_proof = proof_of_work(data.get('last_block'))
+        print("submitting proof: " + str(new_proof))
 
         post_data = {"proof": new_proof,
                      "id": id}
