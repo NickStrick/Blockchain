@@ -156,7 +156,8 @@ class Blockchain(object):
             if block['previous_hash'] != self.hash(last_block):
                 return False
 
-            last_block_string = json.dumps(chain[current_index - 1], sort_keys=True).encode()
+            last_block_string = json.dumps(
+                chain[current_index - 1], sort_keys=True).encode()
             # Check that the Proof of Work is correct
             if not self.valid_proof(last_block_string, block['proof']):
                 return False
@@ -306,7 +307,7 @@ def new_block():
             if blockchain.valid_proof(block_string, new_block['proof']):
                 # Proof is valid
                 print("New block accepted")
-                blockchain.add(new_block)
+                blockchain.add_block(new_block)
                 return 'Block Accepted', 200
             else:
                 # Bad proof, handle case and response
@@ -380,6 +381,15 @@ def register_nodes():
         'total_nodes': list(blockchain.nodes),
     }
     return jsonify(response), 201
+
+
+@app.route('/last_block', methods=['GET'])
+def return_last_block():
+    last_block = blockchain.chain[-1]
+    response = {
+        'last_block': last_block
+    }
+    return jsonify(response), 200
 
 
 ###
