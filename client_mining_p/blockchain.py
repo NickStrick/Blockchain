@@ -5,6 +5,8 @@ from time import time
 from uuid import uuid4
 
 from flask import Flask, jsonify, request
+from urllib.parse import urlparse
+import requests
 
 
 class Blockchain(object):
@@ -168,36 +170,46 @@ node_identifier = str(uuid4()).replace('-', '')
 blockchain = Blockchain()
 
 
-@app.route('/mine', methods=['GET'])
+@app.route('/mine', methods=['POST'])
 def mine():
     # We run the proof of work algorithm to get the next proof...
-    proof = blockchain.proof_of_work(blockchain.last_block)
+    # proof = blockchain.proof_of_work(blockchain.last_block)
+    proof = request.form['proof']
+    block_string = json.dumps(blockchain.last_block, sort_keys=True).encode()
+    if blockchain.valid_proof(block_string, proof):
+        blockchain.new_transaction(
+            sender="0",
+            recipient=node_identifier,
+            amount=1,
+        )
 
     # We must receive a reward for finding the proof.
     #
     # The sender is "0" to signify that this node has mine a new coin
     # The recipient is the current node, it did the mining!
     # The amount is 1 coin as a reward for mining the next block
-    blockchain.new_transaction(
-        sender="0",
-        recipient=node_identifier,
-        amount=1,
-    )
 
-    # Forge the new Block by adding it to the chain
-    previous_hash = blockchain.hash(blockchain.last_block)
-    block = blockchain.new_block(proof, previous_hash)
+        # Forge the new Block by adding it to the chain
+        previous_hash = blockchain.hash(blockchain.last_block)
+        block = blockchain.new_block(proof, previous_hash)
 
-    # Send a response with the new block
-    response = {
-        'message': "New Block Forged",
-        'index': block['index'],
-        'transactions': block['transactions'],
-        'proof': block['proof'],
-        'previous_hash': block['previous_hash'],
-        # 'message': f"proof found: {proof}"
-    }
-    return jsonify(response), 200
+        # Send a response with the new block
+        response = {
+            'success': True,
+            'message': "New Block Forged",
+            'index': block['index'],
+            'transactions': block['transactions'],
+            'proof': block['proof'],
+            'previous_hash': block['previous_hash'],
+            # 'message': f"proof found: {proof}"
+        }
+        return jsonify(response), 200
+    else:
+        response = {
+            'success': False,
+            'message': "Invalid Proof"
+        }
+        return jsonify(response), 500
 
 
 @app.route('/transactions/new', methods=['POST'])
@@ -233,6 +245,14 @@ def validate_chain():
 
     response = {
         'validity': result
+    }
+    return jsonify(response), 200
+
+
+@app.route('/last_block', methods=['GET'])
+def last_block():
+    response = {
+        'last_block': blockchain.last_block
     }
     return jsonify(response), 200
 
